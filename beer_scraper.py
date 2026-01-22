@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Iterable, List, Optional
 from urllib.parse import quote
 
@@ -163,6 +164,8 @@ class CotoScraper(BaseScraper):
                     ".list-price",
                 ],
             )
+            if not list_price:
+                list_price = self._extract_labeled_price(card, "Precio Regular")
             promotion = self._text_from_selectors(
                 card,
                 [
@@ -215,6 +218,18 @@ class CotoScraper(BaseScraper):
                     return False
                 return True
         return False
+
+    @staticmethod
+    def _extract_labeled_price(card: BeautifulSoup, label: str) -> str:
+        text = card.get_text(" ", strip=True)
+        pattern = rf"{re.escape(label)}[:\\s]*\\$?\\s*([\\d\\.]+,\\d{{2}})"
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if not match:
+            return ""
+        value = match.group(1).strip()
+        if value.startswith("$"):
+            return value
+        return f"$ {value}"
 
 
 def format_money(value: Optional[float]) -> str:
