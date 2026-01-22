@@ -65,6 +65,8 @@ class VtexScraper(BaseScraper):
         if not sellers:
             return None
         offer = sellers[0].get("commertialOffer") or {}
+        if not self._is_in_stock(offer):
+            return None
         price = offer.get("Price")
         list_price = offer.get("ListPrice") or price
         title = product.get("productName") or item.get("name") or "Producto"
@@ -112,6 +114,15 @@ class VtexScraper(BaseScraper):
             return ""
         return f"{percent}% OFF"
 
+    @staticmethod
+    def _is_in_stock(offer: dict) -> bool:
+        if offer.get("IsAvailable") is False:
+            return False
+        available = offer.get("AvailableQuantity")
+        if isinstance(available, (int, float)) and available <= 0:
+            return False
+        return True
+
 
 class CotoScraper(BaseScraper):
     name = "Coto Digital"
@@ -134,6 +145,8 @@ class CotoScraper(BaseScraper):
         cards = soup.select("div.producto, div.product-card, li.product-item")
         deals: List[ProductDeal] = []
         for card in cards:
+            if not self._is_in_stock(card):
+                continue
             title = self._text_from_selectors(
                 card, ["h2", ".nombre", ".productTitle", ".title"]
             )
@@ -186,6 +199,23 @@ class CotoScraper(BaseScraper):
                     return text
         return ""
 
+    @staticmethod
+    def _is_in_stock(card: BeautifulSoup) -> bool:
+        unavailable_selectors = [
+            ".sin-stock", ".agotado", ".stock-out", ".no-disponible",
+        ]
+        for selector in unavailable_selectors:
+            if card.select_one(selector):
+                return False
+        for element in card.select("button, a"):
+            text = element.get_text(" ", strip=True).lower()
+            if any(keyword in text for keyword in ["agregar", "comprar", "sumar"]):
+                classes = " ".join(element.get("class", []))
+                if element.has_attr("disabled") or "disabled" in classes:
+                    return False
+                return True
+        return False
+
 
 def format_money(value: Optional[float]) -> str:
     if value is None:
@@ -206,7 +236,8 @@ def render_results(results: List[ProductDeal]) -> None:
         print(f"\n=== {site} ===")
         for deal in deals:
             print(f"- {deal.title}")
-            print(f"  Tipo de promoción: {deal.promotion}")
+            if deal.promotion and deal.promotion.lower() != "sin promoción":
+                print(f"  Tipo de promoción: {deal.promotion}")
             if deal.list_price:
                 print(f"  Precio lista: {deal.list_price}")
             print(f"  Precio promo: {deal.price}")
