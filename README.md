@@ -8,25 +8,26 @@ Buscador interactivo de promociones de cerveza en supermercados de Argentina.
 - Dependencias:
 
 ```bash
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 playwright install chromium
 ```
 
 ## Uso
 
 ```bash
-python beer_scraper.py
+python3 beer_scraper.py
 ```
 
 Ingresá la marca cuando se te solicite y el script mostrará promociones (con descuento o etiqueta promocional) para cada sitio.
 
 ## Sitios soportados
 
-- Coto Digital
+- Coto Digital (cotodigital.com.ar)
 - Vea
 - Jumbo
 - Disco
 - DIA Online
+- Carrefour (carrefour.com.ar)
 
 ## Notas
 

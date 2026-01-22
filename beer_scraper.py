@@ -49,13 +49,14 @@ class VtexScraper(BaseScraper):
         response.raise_for_status()
         payload = response.json()
         deals: List[ProductDeal] = []
+        query_lower = query.lower()
         for product in payload:
-            deal = self._parse_product(product)
+            deal = self._parse_product(product, query_lower)
             if deal:
                 deals.append(deal)
         return deals
 
-    def _parse_product(self, product: dict) -> Optional[ProductDeal]:
+    def _parse_product(self, product: dict, query_lower: str) -> Optional[ProductDeal]:
         items = product.get("items") or []
         if not items:
             return None
@@ -66,12 +67,14 @@ class VtexScraper(BaseScraper):
         offer = sellers[0].get("commertialOffer") or {}
         price = offer.get("Price")
         list_price = offer.get("ListPrice") or price
-        promotion = self._extract_promotion(offer)
-        if not promotion and price == list_price:
+        title = product.get("productName") or item.get("name") or "Producto"
+        if query_lower not in title.lower():
             return None
+        promotion = self._extract_promotion(offer)
         if not promotion:
             promotion = self._discount_label(price, list_price)
-        title = product.get("productName") or item.get("name") or "Producto"
+        if not promotion:
+            return None
         url = self._build_url(product)
         return ProductDeal(
             site=self.name,
@@ -102,9 +105,13 @@ class VtexScraper(BaseScraper):
         return ""
 
     def _discount_label(self, price: Optional[float], list_price: Optional[float]) -> str:
-        if not price or not list_price or price >= list_price:
+        if not price or not list_price or price <= 0 or list_price <= 0:
+            return ""
+        if price >= list_price:
             return ""
         percent = round((1 - price / list_price) * 100)
+        if percent <= 0 or percent > 90:
+            return ""
         return f"{percent}% OFF"
 
 
@@ -122,12 +129,13 @@ class CotoScraper(BaseScraper):
             page.wait_for_timeout(3000)
             content = page.content()
             browser.close()
-        return self._parse_html(content)[:10]
+        return self._parse_html(content, query)[:10]
 
-    def _parse_html(self, html: str) -> List[ProductDeal]:
+    def _parse_html(self, html: str, query: str) -> List[ProductDeal]:
         soup = BeautifulSoup(html, "html.parser")
         cards = soup.select("div.producto, div.product-card, li.product-item")
         deals: List[ProductDeal] = []
+        query_lower = query.lower()
         for card in cards:
             title = self._text_from_selectors(
                 card, ["h2", ".nombre", ".productTitle", ".title"]
@@ -143,6 +151,8 @@ class CotoScraper(BaseScraper):
                 ],
             )
             if not promotion:
+                continue
+            if query_lower not in title.lower():
                 continue
             link_tag = card.select_one("a[href]")
             url = link_tag["href"] if link_tag else "https://www.cotodigital.com.ar/"
@@ -175,7 +185,9 @@ class CotoScraper(BaseScraper):
 def format_money(value: Optional[float]) -> str:
     if value is None:
         return ""
-    return f"$ {value:,.2f}".replace(",", ".")
+    formatted = f"{value:,.2f}"
+    formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"$ {formatted}"
 
 
 def render_results(results: List[ProductDeal]) -> None:
@@ -208,6 +220,7 @@ def run_interactive(scrapers: List[BaseScraper]) -> None:
         results: List[ProductDeal] = []
         for scraper in scrapers:
             try:
+                print(f"Buscando en {scraper.name}...")
                 results.extend(scraper.search(query))
             except Exception as exc:  # noqa: BLE001
                 print(f"[WARN] {scraper.name}: {exc}")
@@ -221,6 +234,7 @@ def main() -> None:
         VtexScraper("Jumbo", "https://www.jumbo.com.ar"),
         VtexScraper("Disco", "https://www.disco.com.ar"),
         VtexScraper("DIA Online", "https://diaonline.supermercadosdia.com.ar"),
+        VtexScraper("Carrefour", "https://www.carrefour.com.ar"),
     ]
     run_interactive(scrapers)
 
