@@ -21,6 +21,7 @@ class ProductDeal:
     title: str
     promotion: str
     price: str
+    list_price: str
     url: str
 
 
@@ -81,6 +82,7 @@ class VtexScraper(BaseScraper):
             title=title,
             promotion=promotion,
             price=format_money(price),
+            list_price=format_money(list_price),
             url=url,
         )
 
@@ -143,6 +145,16 @@ class CotoScraper(BaseScraper):
             price = self._text_from_selectors(
                 card, [".price", ".precio", ".atg_store_newPrice", ".price"],
             )
+            list_price = self._text_from_selectors(
+                card,
+                [
+                    ".old-price",
+                    ".precio-viejo",
+                    ".precioAnterior",
+                    ".price-old",
+                    ".list-price",
+                ],
+            )
             promotion = self._text_from_selectors(
                 card,
                 [
@@ -166,6 +178,7 @@ class CotoScraper(BaseScraper):
                     title=title,
                     promotion=promotion,
                     price=price,
+                    list_price=list_price,
                     url=url,
                 )
             )
@@ -202,7 +215,9 @@ def render_results(results: List[ProductDeal]) -> None:
         for deal in deals:
             print(f"- {deal.title}")
             print(f"  Promoción: {deal.promotion}")
-            print(f"  Precio: {deal.price}")
+            if deal.list_price:
+                print(f"  Precio lista: {deal.list_price}")
+            print(f"  Precio promo: {deal.price}")
             print(f"  Link: {deal.url}\n")
 
 
